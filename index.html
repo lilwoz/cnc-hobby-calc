@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Spindle speed and feed rate calculator for Genmitsu 3018-PROVER — values mapped to Autodesk Fusion CAM">
+  <title>CNC Hobby Calc — 3018-PROVER</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header__brand">
+        <span class="header__icon" aria-hidden="true">⚙</span>
+        <div>
+          <h1>CNC Hobby Calc</h1>
+          <p class="header__subtitle">Feed &amp; speed for Genmitsu 3018-PROVER · Fusion 360 ready</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel panel--inputs" aria-labelledby="inputs-heading">
+        <h2 id="inputs-heading">Parameters</h2>
+
+        <fieldset class="field-group">
+          <legend>Material</legend>
+          <label class="field">
+            <span class="field__label">Material</span>
+            <select id="material" class="field__control"></select>
+          </label>
+          <p id="material-note" class="field__hint"></p>
+        </fieldset>
+
+        <fieldset class="field-group">
+          <legend>Tool</legend>
+          <div class="field-row">
+            <label class="field">
+              <span class="field__label">Diameter, mm</span>
+              <input type="number" id="tool-diameter" class="field__control" min="0.1" max="20" step="0.1" value="3.175">
+            </label>
+            <label class="field">
+              <span class="field__label">Flutes</span>
+              <select id="flutes" class="field__control">
+                <option value="1">1</option>
+                <option value="2" selected>2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+            </label>
+          </div>
+          <label class="field">
+            <span class="field__label">Tool material</span>
+            <select id="tool-type" class="field__control">
+              <option value="carbide" selected>Carbide</option>
+              <option value="hss">HSS</option>
+            </select>
+          </label>
+        </fieldset>
+
+        <fieldset class="field-group">
+          <legend>Cut parameters</legend>
+          <label class="field">
+            <span class="field__label">Depth of cut ap, mm</span>
+            <input type="number" id="depth-of-cut" class="field__control" min="0.01" max="10" step="0.01" value="0.5">
+            <span class="field__hint">Fusion: Passes → Maximum roughing stepdown</span>
+          </label>
+          <label class="field">
+            <span class="field__label">Stepover ae, mm</span>
+            <input type="number" id="stepover" class="field__control" min="0.01" max="20" step="0.01" value="1.5">
+            <span class="field__hint">Fusion: Passes → Horizontal / Radial stepover</span>
+          </label>
+          <label class="field field--range">
+            <span class="field__label">
+              Machine margin
+              <span id="conservatism-value" class="field__badge">80%</span>
+            </span>
+            <input type="range" id="conservatism" class="field__control field__control--range" min="50" max="100" step="5" value="80">
+            <span class="field__hint">Lower = safer for a lightweight 3018</span>
+          </label>
+        </fieldset>
+
+        <fieldset class="field-group field-group--advanced">
+          <legend>
+            <button type="button" id="toggle-advanced" class="link-btn" aria-expanded="false" aria-controls="advanced-panel">
+              Advanced settings ▾
+            </button>
+          </legend>
+          <div id="advanced-panel" class="advanced-panel" hidden>
+            <label class="field">
+              <span class="field__label">Surface speed Vc, m/min</span>
+              <input type="number" id="cutting-speed" class="field__control" min="1" max="500" step="1">
+              <span class="field__hint">Auto from material; override if needed</span>
+            </label>
+            <label class="field">
+              <span class="field__label">Base chip load fz, mm/tooth</span>
+              <input type="number" id="chip-load" class="field__control" min="0.001" max="0.5" step="0.001">
+              <span class="field__hint">Reference at ~40% stepover; adjusted for your ap / ae below</span>
+            </label>
+            <div class="field-row">
+              <label class="field">
+                <span class="field__label">Max spindle speed, RPM</span>
+                <input type="number" id="max-rpm" class="field__control" min="1000" max="24000" step="100" value="10000">
+              </label>
+              <label class="field">
+                <span class="field__label">Max cutting feed, mm/min</span>
+                <input type="number" id="max-feed" class="field__control" min="50" max="3000" step="50" value="800">
+              </label>
+            </div>
+            <label class="field">
+              <span class="field__label">Plunge feed ratio</span>
+              <input type="number" id="plunge-ratio" class="field__control" min="0.1" max="1" step="0.05" value="0.4">
+              <span class="field__hint">Plunge feedrate = cutting feed × ratio</span>
+            </label>
+          </div>
+        </fieldset>
+      </section>
+
+      <section class="panel panel--results" aria-labelledby="results-heading">
+        <h2 id="results-heading">Recommended values</h2>
+
+        <div id="warnings" class="warnings" role="alert" aria-live="polite"></div>
+
+        <div id="engagement-note" class="engagement-note" hidden></div>
+
+        <div class="results-grid">
+          <article class="result-card result-card--primary">
+            <span class="result-card__label">Spindle speed</span>
+            <span class="result-card__value" id="result-rpm">—</span>
+            <span class="result-card__unit">RPM</span>
+          </article>
+          <article class="result-card result-card--primary">
+            <span class="result-card__label">Cutting feedrate</span>
+            <span class="result-card__value" id="result-feed">—</span>
+            <span class="result-card__unit">mm/min</span>
+          </article>
+          <article class="result-card">
+            <span class="result-card__label">Plunge feedrate</span>
+            <span class="result-card__value" id="result-plunge">—</span>
+            <span class="result-card__unit">mm/min</span>
+          </article>
+          <article class="result-card">
+            <span class="result-card__label">Surface speed</span>
+            <span class="result-card__value" id="result-vc">—</span>
+            <span class="result-card__unit">m/min</span>
+          </article>
+          <article class="result-card">
+            <span class="result-card__label">Feed per tooth</span>
+            <span class="result-card__value" id="result-fz">—</span>
+            <span class="result-card__unit">mm/tooth</span>
+          </article>
+          <article class="result-card">
+            <span class="result-card__label">Material removal rate</span>
+            <span class="result-card__value" id="result-mrr">—</span>
+            <span class="result-card__unit">mm³/min</span>
+          </article>
+        </div>
+
+        <div class="fusion-map">
+          <h3 class="fusion-map__title">Autodesk Fusion 360</h3>
+          <p class="fusion-map__intro">Paste these into your toolpath or tool library (Manufacture workspace):</p>
+          <ul class="fusion-map__list" id="fusion-map-list"></ul>
+        </div>
+
+        <div class="copy-bar">
+          <button type="button" id="copy-values" class="btn btn--secondary">Copy for Fusion</button>
+          <span id="copy-status" class="copy-status" aria-live="polite"></span>
+        </div>
+
+        <details class="formulas">
+          <summary>Formulas &amp; notes</summary>
+          <dl class="formulas__list">
+            <dt>RPM = (Vc × 1000) / (π × D)</dt>
+            <dd>Spindle speed from surface speed Vc (m/min) and tool diameter D (mm)</dd>
+            <dt>Cutting feed = RPM × flutes × fz<sub>adj</sub></dt>
+            <dd>fz<sub>adj</sub> scales with engagement: lower for deep cuts and full-width slots, higher for light stepover (chip thinning)</dd>
+            <dt>fz<sub>adj</sub> = fz<sub>base</sub> × radial factor × axial factor</dt>
+            <dd>Radial factor uses stepover / diameter; axial factor uses stepdown / diameter</dd>
+            <dt>MRR = stepover × stepdown × cutting feed</dt>
+            <dd>Material removal rate: ae × ap × feed</dd>
+          </dl>
+          <p class="formulas__note">
+            Values are tuned for a 3018-PROVER (775 spindle, limited rigidity).
+            In Fusion, set your post processor and machine limits to match.
+            Start shallow and increase depth gradually while listening to the cut and checking chips.
+          </p>
+        </details>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>Reference values only. Always verify with an air cut and a shallow test pass before full-depth machining.</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
