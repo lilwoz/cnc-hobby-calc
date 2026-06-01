@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Spindle speed and feed rate calculator for Genmitsu 3018-PROVER — values mapped to Autodesk Fusion CAM">
+  <meta name="description" content="Spindle speed and feed rate calculator for Genmitsu 3018-PROVER">
   <title>CNC Hobby Calc — 3018-PROVER</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -14,7 +14,7 @@
         <span class="header__icon" aria-hidden="true">⚙</span>
         <div>
           <h1>CNC Hobby Calc</h1>
-          <p class="header__subtitle">Feed &amp; speed for Genmitsu 3018-PROVER · Fusion 360 ready</p>
+          <p class="header__subtitle">Feed &amp; speed for Genmitsu 3018-PROVER</p>
         </div>
       </div>
     </header>
@@ -63,12 +63,10 @@
           <label class="field">
             <span class="field__label">Depth of cut ap, mm</span>
             <input type="number" id="depth-of-cut" class="field__control" min="0.01" max="10" step="0.01" value="0.5">
-            <span class="field__hint">Fusion: Passes → Maximum roughing stepdown</span>
           </label>
           <label class="field">
             <span class="field__label">Stepover ae, mm</span>
             <input type="number" id="stepover" class="field__control" min="0.01" max="20" step="0.01" value="1.5">
-            <span class="field__hint">Fusion: Passes → Horizontal / Radial stepover</span>
           </label>
           <label class="field field--range">
             <span class="field__label">
@@ -95,7 +93,7 @@
             <label class="field">
               <span class="field__label">Base chip load fz, mm/tooth</span>
               <input type="number" id="chip-load" class="field__control" min="0.001" max="0.5" step="0.001">
-              <span class="field__hint">Reference at ~40% stepover; adjusted for your ap / ae below</span>
+              <span class="field__hint">Reference at ~40% stepover; adjusted for your ap / ae</span>
             </label>
             <div class="field-row">
               <label class="field">
@@ -113,6 +111,20 @@
               <span class="field__hint">Plunge feedrate = cutting feed × ratio</span>
             </label>
           </div>
+        </fieldset>
+
+        <fieldset class="field-group">
+          <legend>Presets</legend>
+          <label class="field">
+            <span class="field__label">Preset name</span>
+            <input type="text" id="preset-name" class="field__control" placeholder="e.g. Aluminum 3 mm rough" maxlength="80">
+          </label>
+          <div class="preset-bar">
+            <button type="button" id="download-settings" class="btn btn--secondary">Download settings</button>
+            <button type="button" id="load-settings-btn" class="btn btn--secondary">Load settings</button>
+            <input type="file" id="load-settings-file" accept=".json,application/json" hidden>
+          </div>
+          <p id="preset-status" class="preset-status" aria-live="polite"></p>
         </fieldset>
       </section>
 
@@ -156,17 +168,6 @@
           </article>
         </div>
 
-        <div class="fusion-map">
-          <h3 class="fusion-map__title">Autodesk Fusion 360</h3>
-          <p class="fusion-map__intro">Paste these into your toolpath or tool library (Manufacture workspace):</p>
-          <ul class="fusion-map__list" id="fusion-map-list"></ul>
-        </div>
-
-        <div class="copy-bar">
-          <button type="button" id="copy-values" class="btn btn--secondary">Copy for Fusion</button>
-          <span id="copy-status" class="copy-status" aria-live="polite"></span>
-        </div>
-
         <details class="formulas">
           <summary>Formulas &amp; notes</summary>
           <dl class="formulas__list">
@@ -181,7 +182,6 @@
           </dl>
           <p class="formulas__note">
             Values are tuned for a 3018-PROVER (775 spindle, limited rigidity).
-            In Fusion, set your post processor and machine limits to match.
             Start shallow and increase depth gradually while listening to the cut and checking chips.
           </p>
         </details>

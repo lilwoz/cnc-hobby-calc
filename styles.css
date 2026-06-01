@@ -277,12 +277,12 @@ body {
   color: #fca5a5;
 }
 
-.copy-bar {
+.preset-bar {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
-  margin-bottom: 1rem;
+  margin-bottom: 0.25rem;
 }
 
 .btn {
@@ -309,10 +309,15 @@ body {
   background: var(--border);
 }
 
-.copy-status {
+.preset-status {
+  margin: 0.35rem 0 0;
   font-size: 0.8125rem;
   color: var(--success);
   min-height: 1.25rem;
+}
+
+.preset-status--error {
+  color: var(--danger);
 }
 
 .engagement-note {
@@ -338,49 +343,6 @@ body {
   font-family: var(--mono);
   font-size: 0.75rem;
   color: var(--accent);
-}
-
-.fusion-map {
-  background: rgba(59, 158, 255, 0.06);
-  border: 1px solid rgba(59, 158, 255, 0.2);
-  border-radius: var(--radius);
-  padding: 0.875rem 1rem;
-  margin-bottom: 1rem;
-}
-
-.fusion-map__title {
-  margin: 0 0 0.35rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--accent);
-}
-
-.fusion-map__intro {
-  margin: 0 0 0.625rem;
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-}
-
-.fusion-map__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.fusion-map__list li {
-  font-size: 0.8125rem;
-  line-height: 1.4;
-  color: var(--text);
-}
-
-.fusion-map__where {
-  color: var(--text-muted);
-  font-size: 0.75rem;
 }
 
 .formulas {

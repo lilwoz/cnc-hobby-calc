@@ -98,6 +98,7 @@ const MATERIALS = {
 };
 
 const MIN_RPM = 3000;
+const SETTINGS_VERSION = 1;
 
 const $ = (id) => document.getElementById(id);
 
@@ -124,16 +125,17 @@ const els = {
   resultVc: $('result-vc'),
   resultFz: $('result-fz'),
   resultMrr: $('result-mrr'),
-  fusionMapList: $('fusion-map-list'),
   engagementNote: $('engagement-note'),
   warnings: $('warnings'),
-  copyValues: $('copy-values'),
-  copyStatus: $('copy-status'),
+  presetName: $('preset-name'),
+  downloadSettings: $('download-settings'),
+  loadSettingsBtn: $('load-settings-btn'),
+  loadSettingsFile: $('load-settings-file'),
+  presetStatus: $('preset-status'),
 };
 
 let manualVc = false;
 let manualFz = false;
-let lastResults = null;
 
 function initMaterialSelect() {
   for (const [key, mat] of Object.entries(MATERIALS)) {
@@ -238,7 +240,6 @@ function renderEngagementNote(fzBase, fzAdj, eng) {
   els.engagementNote.innerHTML = `
     <strong>Feed adjusted for engagement</strong>
     Base fz ${round3(fzBase)} → adjusted <strong>${round3(fzAdj)} mm/tooth</strong>
-    (use adjusted value in Fusion → Feed per tooth)
     <div class="engagement-note__factors">
       <span>Radial ${pctRd}% ae/D ×${eng.radialFactor}</span>
       <span>Axial ${pctAd}% ap/D ×${eng.axialFactor}</span>
@@ -246,19 +247,138 @@ function renderEngagementNote(fzBase, fzAdj, eng) {
     </div>`;
 }
 
-function renderFusionMap(results, ap, ae) {
-  const items = [
-    { where: 'Toolpath → Feed & Speed', field: 'Spindle speed', value: `${round0(results.rpm)} RPM` },
-    { where: 'Toolpath → Feed & Speed', field: 'Cutting feedrate', value: `${round0(results.feed)} mm/min` },
-    { where: 'Toolpath → Feed & Speed', field: 'Plunge feedrate', value: `${round0(results.plunge)} mm/min` },
-    { where: 'Toolpath → Feed & Speed', field: 'Feed per tooth', value: `${round3(results.fzAdj)} mm` },
-    { where: 'Toolpath → Passes', field: 'Maximum roughing stepdown', value: `${ap} mm` },
-    { where: 'Toolpath → Passes', field: 'Horizontal / radial stepover', value: `${ae} mm` },
-  ];
+function collectSettings() {
+  return {
+    version: SETTINGS_VERSION,
+    name: els.presetName.value.trim(),
+    savedAt: new Date().toISOString(),
+    params: {
+      material: els.material.value,
+      toolDiameter: parseFloat(els.toolDiameter.value),
+      flutes: getFluteCount(),
+      toolType: els.toolType.value,
+      depthOfCut: parseFloat(els.depthOfCut.value),
+      stepover: parseFloat(els.stepover.value),
+      conservatism: parseInt(els.conservatism.value, 10),
+      cuttingSpeed: parseFloat(els.cuttingSpeed.value),
+      chipLoad: parseFloat(els.chipLoad.value),
+      maxRpm: parseFloat(els.maxRpm.value),
+      maxFeed: parseFloat(els.maxFeed.value),
+      plungeRatio: parseFloat(els.plungeRatio.value),
+    },
+    flags: {
+      manualVc,
+      manualFz,
+      stepoverManual: Boolean(els.stepover.dataset.manual),
+      plungeRatioManual: Boolean(els.plungeRatio.dataset.manual),
+    },
+  };
+}
 
-  els.fusionMapList.innerHTML = items.map(({ where, field, value }) =>
-    `<li><span class="fusion-map__where">${where}</span> · <strong>${field}</strong>: ${value}</li>`
-  ).join('');
+function sanitizeFilename(name) {
+  const base = (name || 'cnc-hobby-calc-settings')
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .toLowerCase()
+    .slice(0, 60);
+  return base || 'cnc-hobby-calc-settings';
+}
+
+function showPresetStatus(message, isError = false) {
+  els.presetStatus.textContent = message;
+  els.presetStatus.classList.toggle('preset-status--error', isError);
+  if (!isError) {
+    setTimeout(() => {
+      if (els.presetStatus.textContent === message) {
+        els.presetStatus.textContent = '';
+      }
+    }, 3000);
+  }
+}
+
+function downloadSettings() {
+  const settings = collectSettings();
+  const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${sanitizeFilename(settings.name)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+  showPresetStatus('Settings downloaded.');
+}
+
+function validateSettings(data) {
+  if (!data || typeof data !== 'object') return 'Invalid file format.';
+  if (!data.params || typeof data.params !== 'object') return 'Missing params section.';
+
+  const { params } = data;
+  if (!MATERIALS[params.material]) return `Unknown material: ${params.material}`;
+  if (!(params.toolDiameter > 0)) return 'Invalid tool diameter.';
+  if (![1, 2, 3, 4].includes(params.flutes)) return 'Invalid flute count.';
+  if (!['carbide', 'hss'].includes(params.toolType)) return 'Invalid tool material.';
+
+  return null;
+}
+
+function applySettings(data) {
+  const error = validateSettings(data);
+  if (error) {
+    showPresetStatus(error, true);
+    return false;
+  }
+
+  const { params, flags = {} } = data;
+
+  els.material.value = params.material;
+  els.toolDiameter.value = params.toolDiameter;
+  els.flutes.value = String(params.flutes);
+  els.toolType.value = params.toolType;
+  els.depthOfCut.value = params.depthOfCut;
+  els.stepover.value = params.stepover;
+  els.conservatism.value = params.conservatism;
+  els.conservatismValue.textContent = `${params.conservatism}%`;
+  els.cuttingSpeed.value = params.cuttingSpeed;
+  els.chipLoad.value = params.chipLoad;
+  els.maxRpm.value = params.maxRpm;
+  els.maxFeed.value = params.maxFeed;
+  els.plungeRatio.value = params.plungeRatio;
+
+  manualVc = Boolean(flags.manualVc);
+  manualFz = Boolean(flags.manualFz);
+
+  if (flags.stepoverManual) {
+    els.stepover.dataset.manual = '1';
+  } else {
+    delete els.stepover.dataset.manual;
+  }
+
+  if (flags.plungeRatioManual) {
+    els.plungeRatio.dataset.manual = '1';
+  } else {
+    delete els.plungeRatio.dataset.manual;
+  }
+
+  els.presetName.value = typeof data.name === 'string' ? data.name : '';
+
+  calculate();
+  showPresetStatus('Settings loaded.');
+  return true;
+}
+
+function loadSettingsFromFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      applySettings(data);
+    } catch {
+      showPresetStatus('Could not parse JSON file.', true);
+    }
+  };
+  reader.onerror = () => showPresetStatus('Could not read file.', true);
+  reader.readAsText(file);
 }
 
 function calculate() {
@@ -335,7 +455,7 @@ function calculate() {
   if (ap > maxDoc) {
     warnings.push({
       type: 'caution',
-      text: `Stepdown ${ap} mm is high for a Ø${D} mm tool in ${mat.name}. Try ap ≤ ${round1(maxDoc)} mm (Fusion: Maximum roughing stepdown).`,
+      text: `Stepdown ${ap} mm is high for a Ø${D} mm tool in ${mat.name}. Try ap ≤ ${round1(maxDoc)} mm.`,
     });
   }
 
@@ -367,8 +487,6 @@ function calculate() {
 
   const mrr = ae * ap * feed;
 
-  lastResults = { rpm, feed, plunge, actualVc, fzBase, fzAdj, mrr, ap, ae, eng };
-
   els.resultRpm.textContent = round0(rpm);
   els.resultFeed.textContent = round0(feed);
   els.resultPlunge.textContent = round0(plunge);
@@ -378,7 +496,6 @@ function calculate() {
 
   els.materialNote.textContent = mat.note;
   renderEngagementNote(fzBase, fzAdj, eng);
-  renderFusionMap(lastResults, ap, ae);
   showWarnings(warnings);
 }
 
@@ -396,10 +513,8 @@ function clearResults() {
   for (const key of ['resultRpm', 'resultFeed', 'resultPlunge', 'resultVc', 'resultFz', 'resultMrr']) {
     els[key].textContent = '—';
   }
-  els.fusionMapList.innerHTML = '';
   els.engagementNote.hidden = true;
   els.engagementNote.innerHTML = '';
-  lastResults = null;
 }
 
 function syncStepoverDefault() {
@@ -460,27 +575,16 @@ function bindEvents() {
     els.toggleAdvanced.textContent = expanded ? 'Advanced settings ▾' : 'Advanced settings ▴';
   });
 
-  els.copyValues.addEventListener('click', async () => {
-    if (!lastResults) return;
-    const text = [
-      'Fusion 360 — Feed & Speed',
-      `Spindle speed: ${round0(lastResults.rpm)} RPM`,
-      `Cutting feedrate: ${round0(lastResults.feed)} mm/min`,
-      `Plunge feedrate: ${round0(lastResults.plunge)} mm/min`,
-      `Feed per tooth: ${round3(lastResults.fzAdj)} mm (base ${round3(lastResults.fzBase)}, engagement ×${lastResults.eng.combined})`,
-      '',
-      'Fusion 360 — Passes',
-      `Maximum roughing stepdown: ${lastResults.ap} mm`,
-      `Horizontal stepover: ${lastResults.ae} mm`,
-    ].join('\n');
+  els.downloadSettings.addEventListener('click', downloadSettings);
 
-    try {
-      await navigator.clipboard.writeText(text);
-      els.copyStatus.textContent = 'Copied!';
-      setTimeout(() => { els.copyStatus.textContent = ''; }, 2000);
-    } catch {
-      els.copyStatus.textContent = 'Copy failed';
-    }
+  els.loadSettingsBtn.addEventListener('click', () => {
+    els.loadSettingsFile.click();
+  });
+
+  els.loadSettingsFile.addEventListener('change', () => {
+    const file = els.loadSettingsFile.files[0];
+    if (file) loadSettingsFromFile(file);
+    els.loadSettingsFile.value = '';
   });
 }
 
